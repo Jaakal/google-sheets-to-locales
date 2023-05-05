@@ -1,0 +1,20 @@
+{
+  "name": "google-sheets-to-locales",
+  "version": "1.0.0",
+  "description": "Fetches data from a Google Sheets spreadsheet and generates locale JSON files",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jaakal/google-sheets-to-locales.git"
+  },
+  "author": "Jaak Kivinukk",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Jaakal/google-sheets-to-locales/issues"
+  },
+  "homepage": "https://github.com/Jaakal/google-sheets-to-locales#readme",
+  "dependencies": {
+    "googleapis": "^118.0.0",
+    "typescript": "^5.0.4"
+  }
+}
