@@ -10,115 +10,192 @@ function lowercaseFirstLetter(str) {
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
-function createArrayWithFixedSizeAndInitialize(size, initialValues) {
-  const newArray = new Array(size).fill({});
-  const maxIndex = Math.min(size, initialValues.length);
+function createDeepCopy(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function createInitializedArrayOfLengthFromArray(length, baseArray) {
+  const newArray = Array.from({ length }, () => ({}));
+  const maxIndex = Math.min(length, baseArray.length);
 
   for (let index = 0; index < maxIndex; index++) {
-    newArray[index] = initialValues[index];
+    newArray[index] = baseArray[index];
   }
 
   return newArray;
 }
 
-function initializeArrayEmptyValues(currentTreeDepth, selectorKey) {
-  for (const [index, value] of currentTreeDepth[selectorKey].entries()) {
-    if (value === undefined) {
-      currentTreeDepth[selectorKey][index] = {};
-    }
+function initializeArrayEmptyValues(currentTreeDepth, selector, defaultValue) {
+  for (const [index] of currentTreeDepth[selector].entries()) {
+    currentTreeDepth[selector][index] ||= createDeepCopy(defaultValue);
   }
 }
 
-function resolveIntermediateArraySelector(currentTreeDepth, selectorKey, arrayIndex) {
-  const isArrayIndexDefined = arrayIndex !== null;
+function ensureTreeDepthExists(
+  currentTreeDepth,
+  defaultValue,
+  selector,
+  arrayIndex
+) {
+  const isRegularSelector = arrayIndex === undefined;
 
-  if (isArrayIndexDefined) {
-    const treeDepthIsNotCreated = !currentTreeDepth[selectorKey][arrayIndex];
-
-    if (treeDepthIsNotCreated) {
-      currentTreeDepth[selectorKey][arrayIndex] = {};
-    }
-
-    initializeArrayEmptyValues(currentTreeDepth, selectorKey);
-
-    return currentTreeDepth[selectorKey][arrayIndex];
+  if (isRegularSelector) {
+    currentTreeDepth[selector] ||= defaultValue;
+    return;
   }
 
-  currentTreeDepth[selectorKey].push({});
-
-  return currentTreeDepth[selectorKey][currentTreeDepth[selectorKey].length - 1];
+  currentTreeDepth[selector][arrayIndex] ||= defaultValue;
 }
 
-function resolveEndingArraySelector(currentTreeDepth, selectorKey, arrayIndex, value) {
+function destructureArraySelector(selector) {
+  const destructureArraySelectorRegex = /[\[\]]/;
+  const [_selector, arrayIndexString] = selector.split(
+    destructureArraySelectorRegex
+  );
+  const arrayIndex =
+    arrayIndexString.length > 0 ? parseInt(arrayIndexString, 10) : null;
+
+  return { selector: _selector, arrayIndex };
+}
+
+function resolveIntermediateArraySelector(
+  currentTreeDepth,
+  selector,
+  arrayIndex
+) {
   const isArrayIndexDefined = arrayIndex !== null;
 
   if (isArrayIndexDefined) {
-    currentTreeDepth[selectorKey][arrayIndex] = value;
+    ensureTreeDepthExists(currentTreeDepth, {}, selector, arrayIndex);
+    initializeArrayEmptyValues(currentTreeDepth, selector, {});
+    return currentTreeDepth[selector][arrayIndex];
+  }
+
+  currentTreeDepth[selector].push({});
+
+  return currentTreeDepth[selector][currentTreeDepth[selector].length - 1];
+}
+
+function resolveEndingArraySelector(
+  currentTreeDepth,
+  selector,
+  arrayIndex,
+  value
+) {
+  const isArrayIndexDefined = arrayIndex !== null;
+
+  if (isArrayIndexDefined) {
+    currentTreeDepth[selector][arrayIndex] = value;
+    initializeArrayEmptyValues(currentTreeDepth, selector, '');
   } else {
-    currentTreeDepth[selectorKey].push(value);
+    currentTreeDepth[selector].push(value);
   }
 }
 
-function resolveRegularSelector(isLastSelector, currentTreeDepth, selector, value) {
+function resolveArraySelector(
+  isLastSelector,
+  currentTreeDepth,
+  rawSelector,
+  value
+) {
+  const { selector, arrayIndex } = destructureArraySelector(rawSelector);
+
+  ensureTreeDepthExists(currentTreeDepth, [], selector);
+
+  if (isLastSelector) {
+    resolveEndingArraySelector(currentTreeDepth, selector, arrayIndex, value);
+  } else {
+    return resolveIntermediateArraySelector(
+      currentTreeDepth,
+      selector,
+      arrayIndex
+    );
+  }
+}
+
+function resolveRegularSelector(
+  isLastSelector,
+  currentTreeDepth,
+  selector,
+  value
+) {
   if (isLastSelector) {
     currentTreeDepth[selector] = value;
     return;
   }
 
-  const treeDepthIsNotCreated = !currentTreeDepth[selector];
-
-  if (treeDepthIsNotCreated) {
-    currentTreeDepth[selector] = {};
-  }
+  ensureTreeDepthExists(currentTreeDepth, {}, selector);
 
   return currentTreeDepth[selector];
 }
 
 function createSelectorTree(currentTreeDepth, selectorTree, value) {
   const detectArraySelectorRegex = /\[[^\]]*\]/;
-  const destructureArraySelectorRegex = /[\[\]]/;
+  let _currentTreeDepth = currentTreeDepth;
 
   selectorTree.forEach((selector, selectorIndex) => {
     const isRegularSelector = !detectArraySelectorRegex.test(selector);
     const isLastSelector = selectorIndex === selectorTree.length - 1;
 
     if (isRegularSelector) {
-      currentTreeDepth = resolveRegularSelector(isLastSelector, currentTreeDepth, selector, value);
+      _currentTreeDepth = resolveRegularSelector(
+        isLastSelector,
+        _currentTreeDepth,
+        selector,
+        value
+      );
       return;
     }
 
-    const [selectorKey, arrayIndexString] = selector.split(destructureArraySelectorRegex);
-    const arrayIndex = arrayIndexString.length > 0 ? parseInt(arrayIndexString, 10) : null;
-    const treeDepthIsNotCreated = !currentTreeDepth[selectorKey];
-
-    if (treeDepthIsNotCreated) {
-      currentTreeDepth[selectorKey] = [];
-    }
-
-    if (isLastSelector) {
-      resolveEndingArraySelector(currentTreeDepth, selectorKey, arrayIndex, value);
-    } else {
-      currentTreeDepth = resolveIntermediateArraySelector(currentTreeDepth, selectorKey, arrayIndex);
-    }
+    _currentTreeDepth = resolveArraySelector(
+      isLastSelector,
+      _currentTreeDepth,
+      selector,
+      value
+    );
   });
 }
 
-function parseCopyRowData(copyRowData, sheetLocales, localesJsObject, sheetTitle) {
-  const selectorString = copyRowData.values[0].effectiveValue.stringValue;
+function parseCopyRowData(
+  copyRowData,
+  sheetLocales,
+  localesJsObject,
+  sheetTitle
+) {
+  const selectorString = copyRowData.values[0].effectiveValue?.stringValue;
+  const selectorStringDoesNotExist = selectorString === undefined;
+
+  if (selectorStringDoesNotExist) {
+    return;
+  }
+
   const selectorTree = selectorString.split('.');
 
   copyRowData.values.slice(1).forEach(({ effectiveValue }, index) => {
     const currentTreeDepth = localesJsObject[sheetLocales[index]][sheetTitle];
-    createSelectorTree(currentTreeDepth, selectorTree, effectiveValue?.stringValue ?? '');
+    createSelectorTree(
+      currentTreeDepth,
+      selectorTree,
+      effectiveValue?.stringValue ?? ''
+    );
   });
 }
 
-function parseCopyRowsData() {
+function parseCopyRowsData(
+  copyRowsData,
+  localesJsObject,
+  sheetLocales,
+  sheetName
+) {
   copyRowsData.forEach((copyRowData) => {
-    const copyRowDataNeedsCorrection = copyRowData.values.length !== sheetLocales.length + 1;
+    const copyRowDataNeedsCorrection =
+      copyRowData.values.length !== sheetLocales.length + 1;
     const _copyRowData = {
       values: copyRowDataNeedsCorrection
-        ? createArrayWithFixedSizeAndInitialize(sheetLocales.length + 1, copyRowData.values)
+        ? createInitializedArrayOfLengthFromArray(
+            sheetLocales.length + 1,
+            copyRowData.values
+          )
         : copyRowData.values,
     };
 
@@ -126,31 +203,21 @@ function parseCopyRowsData() {
   });
 }
 
-function parseCopyRowsData(copyRowsData, localesJsObject, sheetLocales, sheetName) {
-  copyRowsData.forEach((copyRowData) => {
-    const copyRowDataNeedsCorrection = copyRowData.values.length !== sheetLocales.length + 1;
-    const _copyRowData = {
-      values: copyRowDataNeedsCorrection
-        ? createArrayWithFixedSizeAndInitialize(sheetLocales.length + 1, copyRowData.values)
-        : copyRowData.values,
-    };
-
-    parseCopyRowData(_copyRowData, sheetLocales, localesJsObject, sheetName);
-  });
-}
-
-function createSheetEntryToLocalesJsObject(localesJsObject, sheetLocales, sheetName) {
+function createSheetEntryToLocalesJsObject(
+  localesJsObject,
+  sheetLocales,
+  sheetName
+) {
   sheetLocales.forEach((sheetLocale) => {
-    if (!localesJsObject[sheetLocale]) {
-      localesJsObject[sheetLocale] = {};
-    }
-
+    localesJsObject[sheetLocale] ||= {};
     localesJsObject[sheetLocale][sheetName] = {};
   });
 }
 
 function parseCurrentSheetLocales(localesRowData) {
-  return [...localesRowData.values.map((value) => value.effectiveValue.stringValue)];
+  return [
+    ...localesRowData.values.map((value) => value.effectiveValue.stringValue),
+  ];
 }
 
 function parseLocalesRowData(localesRowData, sheetLocales) {
@@ -169,13 +236,17 @@ function writeToLocaleFiles(localesJsObject) {
       fs.mkdirSync(`${outputDirectory}`, { recursive: true });
     }
 
-    fs.writeFile(`${outputDirectory}/${locale}.json`, JSON.stringify(localeObject, null, 2), (error) => {
-      if (error) {
-        console.error(`Error writing ${locale}.json file:`, error);
-      } else {
-        console.log(`${locale}.json file saved successfully.`);
+    fs.writeFile(
+      `${outputDirectory}/${locale}.json`,
+      JSON.stringify(localeObject, null, 2),
+      (error) => {
+        if (error) {
+          console.error(`Error writing ${locale}.json file:`, error);
+        } else {
+          console.log(`${locale}.json file saved successfully.`);
+        }
       }
-    });
+    );
   });
 }
 
