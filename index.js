@@ -188,6 +188,9 @@ function parseCopyRowsData(
   sheetName
 ) {
   copyRowsData.forEach((copyRowData) => {
+    const isEmptyRow = copyRowData.values === undefined;
+    if (isEmptyRow) return;
+
     const copyRowDataNeedsCorrection =
       copyRowData.values.length !== sheetLocales.length + 1;
     const _copyRowData = {
