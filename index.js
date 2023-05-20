@@ -279,14 +279,9 @@ async function fetchGoogleSpreadsheetSheets() {
 }
 
 async function fetchLocales() {
-  try {
-    const sheets = await fetchGoogleSpreadsheetSheets();
-    const localesJsObject = createLocalesJsObject(sheets);
-    writeToLocaleFiles(localesJsObject);
-  } catch (error) {
-    console.error(error);
-    throw error;
-  }
+  const sheets = await fetchGoogleSpreadsheetSheets();
+  const localesJsObject = createLocalesJsObject(sheets);
+  writeToLocaleFiles(localesJsObject);
 }
 
 (async () => {
