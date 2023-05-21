@@ -255,14 +255,22 @@ function writeToLocaleFiles(localesJsObject) {
 
 function createLocalesJsObject(sheets) {
   return sheets.reduce((localesJsObject, sheet) => {
-    const sheetName = lowercaseFirstLetter(sheet.properties.title);
-    const sheetLocales = [];
-    const localesRowData = sheet.data[0].rowData[0];
-    const copyRowsData = sheet.data[0].rowData.slice(1);
+    const sheetHasData = sheet.data[0].rowData !== undefined;
 
-    parseLocalesRowData(localesRowData, sheetLocales);
-    createSheetEntryToLocalesJsObject(localesJsObject, sheetLocales, sheetName);
-    parseCopyRowsData(copyRowsData, localesJsObject, sheetLocales, sheetName);
+    if (sheetHasData) {
+      const sheetName = lowercaseFirstLetter(sheet.properties.title);
+      const sheetLocales = [];
+      const localesRowData = sheet.data[0].rowData[0];
+      const copyRowsData = sheet.data[0].rowData.slice(1);
+
+      parseLocalesRowData(localesRowData, sheetLocales);
+      createSheetEntryToLocalesJsObject(
+        localesJsObject,
+        sheetLocales,
+        sheetName
+      );
+      parseCopyRowsData(copyRowsData, localesJsObject, sheetLocales, sheetName);
+    }
 
     return localesJsObject;
   }, {});
